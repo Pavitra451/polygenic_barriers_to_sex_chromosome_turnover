@@ -1,0 +1,494 @@
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//NOTE: Please see the code for the 'basic model' in this github folder for more detailed comments and code annotations
+//This code only contains comments highlighting the differences to the 'basic model'
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+initialize() {	
+	if (exists("slimgui")) {
+		defineConstant("results_path_base", "~/Desktop/");
+		defineConstant("fit_sd", 1);
+	}
+	
+	defineConstant("u", 10^(-5));
+	defineConstant("optimum", 0); //intial shared fitness optimum in males and females
+	defineConstant("new_male_optimum", 0.5); //new male fitness optimum
+	defineConstant("new_female_optimum", -0.5); //new female fitness optimum
+	//these example values correpond to a sexually antagonistic shift in optimum, 
+	//but can be changed to reflect a sex-specific or concordant shift.
+	
+	defineConstant("time_of_shift", 150000); //the optimum shifts 50000 generations after the burn-in period of 100000 generations
+	
+	defineConstant("female_sd", fit_sd); //width of female fitness function
+	defineConstant("male_sd", fit_sd); //width of male fitness function
+	//the width of the selective functions remains constant although the optimal value in each sex changes
+	
+	defineConstant("N", 10000);
+	
+	defineConstant("L", 1000);
+	defineConstant("length_chrom", 100);
+	defineConstant("length_auto", L-length_chrom);
+	
+	ends = c(length_chrom-1, L-1); 
+	densities = c(2*u, u);
+	initializeMutationRate(densities, ends);
+	
+	initializeMutationType("m1", 1.0, "f", 0.0); // SRY marker
+	initializeMutationType("m2", 0.5, "f", 0.0); // X-linked mutations
+	initializeMutationType("m3", 0.5, "f", 0.0); // Y-linked mutations
+	
+	initializeMutationType("m4", 0.5, "f", 0.0); //autosome 1 mutations
+	initializeMutationType("m5", 0.5, "f", 0.0); //autosome 2 mutations
+	initializeMutationType("m6", 0.5, "f", 0.0); //autosome 3 mutations
+	initializeMutationType("m7", 0.5, "f", 0.0); //autosome 4 mutations
+	initializeMutationType("m8", 0.5, "f", 0.0); //autosome 5 mutations
+	initializeMutationType("m9", 0.5, "f", 0.0); //autosome 6 mutations
+	initializeMutationType("m10", 0.5, "f", 0.0); //autosome 7 mutations
+	initializeMutationType("m11", 0.5, "f", 0.0); //autosome 8 mutations
+	initializeMutationType("m12", 0.5, "f", 0.0); //autosome 9 mutations
+	
+	m1.convertToSubstitution = F; 
+	m2.convertToSubstitution = F; 
+	m3.convertToSubstitution = F;
+	m4.convertToSubstitution = F;
+	m5.convertToSubstitution = F;
+	m6.convertToSubstitution = F;
+	m7.convertToSubstitution = F;
+	m8.convertToSubstitution = F;
+	m9.convertToSubstitution = F;
+	m10.convertToSubstitution = F;
+	m11.convertToSubstitution = F;
+	m12.convertToSubstitution = F;
+	
+	//sex chromosomes
+	initializeGenomicElementType("g1", c(m2, m3), c(1.0, 1.0)); 
+	initializeGenomicElement(g1, 0, (length_chrom-1));
+	
+	//autosomes
+	initializeGenomicElementType("g2", m4, 1.0);
+	initializeGenomicElement(g2, length_chrom, (length_chrom*2-1));
+	initializeGenomicElementType("g3", m5, 1.0);
+	initializeGenomicElement(g3, length_chrom*2, (length_chrom*3-1));
+	initializeGenomicElementType("g4", m6, 1.0);
+	initializeGenomicElement(g4, length_chrom*3, (length_chrom*4-1));
+	initializeGenomicElementType("g5", m7, 1.0);
+	initializeGenomicElement(g5, length_chrom*4, (length_chrom*5-1));
+	initializeGenomicElementType("g6", m8, 1.0);
+	initializeGenomicElement(g6, length_chrom*5, (length_chrom*6-1));
+	initializeGenomicElementType("g7", m9, 1.0);
+	initializeGenomicElement(g7, length_chrom*6, (length_chrom*7-1));
+	initializeGenomicElementType("g8", m10, 1.0);
+	initializeGenomicElement(g8, length_chrom*7, (length_chrom*8-1));
+	initializeGenomicElementType("g9", m11, 1.0);
+	initializeGenomicElement(g9, length_chrom*8, (length_chrom*9-1));
+	initializeGenomicElementType("g10", m12, 1.0);
+	initializeGenomicElement(g10, length_chrom*9, (length_chrom*10-1));
+	
+	initializeSex("A");
+	
+	
+	//sets up recombination rate 
+	female_rates = c(0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01);
+	male_rates = c(0.0, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01); 
+	//no recombination between X and Y in males
+	ends = c(99, 100, 199, 200, 299, 300, 399, 400, 499, 500, 599, 600, 699, 700, 799, 800, 899, 900, 999);
+	
+	initializeRecombinationRate(female_rates, ends, sex="F");
+	initializeRecombinationRate(male_rates, ends, sex="M");
+	
+	
+	//sets up bivariate normal distribution, from which the phenotypic effects of new mutations in males and females are drawn
+	defineConstant("mu", c(0, 0)); 
+	defineConstant("var_u", (0.25*10^-2)); 
+	defineConstant("cov", 0.9*var_u); 
+	defineConstant("sigma", matrix(c(var_u,cov,cov,var_u), nrow=2));
+	
+	defineConstant("extra", rdunif(1,0,10000000));
+	defineConstant("results_path", results_path_base +"/"+extra+"/");
+	createDirectory(results_path);
+	
+	defineConstant("simulation_info", ("oolgenic_barriers_shift_in_optimum_"+extra+"_"));
+	
+	defineConstant("pheno_file_start", (results_path+"pheno"+"_"+simulation_info));
+	defineConstant("allele_file_start", (results_path+"allele"+"_"+simulation_info));
+	defineConstant("chrom_file", (results_path+"per_chrom_"+simulation_info+".csv"));
+
+
+}
+
+1 early(){
+	sim.addSubpop("p1", N);
+}
+
+1 early(){
+	i = p1.individuals;
+	i[i.sex == "M"].genome2.addNewMutation(m1, 0.0, 0);
+}
+
+
+1: late(){
+	
+	males = p1.individuals[p1.individuals.sex=="M"];
+	females = p1.individuals[p1.individuals.sex=="F"];
+	
+	female_X_genomes = females.genomes;
+	male_X_genomes = males.genome1;
+	
+	all_X_genomes = c(female_X_genomes,male_X_genomes);
+	
+	Y_muts_on_X_genomes = all_X_genomes.mutationsOfType(m3);
+	all_X_genomes.removeMutations(Y_muts_on_X_genomes, F);
+	
+	male_Y_genomes = males.genome2;
+	all_Y_genomes = male_Y_genomes;
+	
+	X_muts_on_Y_genomes = all_Y_genomes.mutationsOfType(m2);
+	all_Y_genomes.removeMutations(X_muts_on_Y_genomes, F);
+
+
+}
+
+
+modifyChild() {
+	if (child.sex == "F")
+		return !child.genome2.containsMarkerMutation(m1, 0);
+	else
+		return child.genome2.containsMarkerMutation(m1, 0);
+}
+
+
+
+250001 late() {sim.simulationFinished();}
+//the simulation runs for 100000 generations after the shift in optimum occurs
+
+
+fitnessEffect() {
+	
+	muts_auto = c(individual.genomes.mutationsOfType(m4),
+		individual.genomes.mutationsOfType(m5),
+		individual.genomes.mutationsOfType(m6),
+		individual.genomes.mutationsOfType(m7),
+		individual.genomes.mutationsOfType(m8),
+		individual.genomes.mutationsOfType(m9),
+		individual.genomes.mutationsOfType(m10),
+		individual.genomes.mutationsOfType(m11),
+		individual.genomes.mutationsOfType(m12));
+	
+	if (individual.sex == "F"){
+		
+		mut_phenotype_auto = size(muts_auto) ? sum(muts_auto.getValue("e_f")) else 0.0;
+		muts_x = individual.genomes.mutationsOfType(m2); 
+		mut_phenotype_x = size(muts_x) ? sum(muts_x.getValue("e_f")) else 0.0;
+		
+		phenotype = mut_phenotype_auto + mut_phenotype_x;
+		
+		//checks to see if the optimum shift has occured yet
+		//if yes, calculates fitness based on the new female optimum
+		if (sim.cycle < time_of_shift){
+			fitness = dnorm(asFloat(phenotype), optimum, female_sd)*sqrt(2*PI)*female_sd;
+		}
+		else{
+			fitness = dnorm(asFloat(phenotype), new_female_optimum, female_sd)*sqrt(2*PI)*female_sd;
+		}
+	
+	
+	}
+	
+	else{//individual is male
+		
+		mut_phenotype_auto = size(muts_auto) ? sum(muts_auto.getValue("e_m")) else 0.0;
+		muts_x = individual.genome1.mutationsOfType(m2); 
+		muts_y = individual.genome2.mutationsOfType(m3); 
+		mut_phenotype_x = size(muts_x) ? sum(muts_x.getValue("e_m")) else 0.0;
+		mut_phenotype_y = size(muts_y) ? sum(muts_y.getValue("e_m")) else 0.0;
+		
+		phenotype = mut_phenotype_auto + mut_phenotype_x + mut_phenotype_y;
+		
+		//checks to see if the optimum shift has occured yet
+		//if yes, calculates fitness based on the new male optimum
+		if (sim.cycle < time_of_shift){
+			fitness = dnorm(asFloat(phenotype), optimum, male_sd)*sqrt(2*PI)*male_sd;
+		}
+		else{
+			fitness = dnorm(asFloat(phenotype), new_male_optimum, male_sd)*sqrt(2*PI)*male_sd;
+		}
+	
+	}
+	
+	return fitness;
+
+}
+
+
+5: late() {
+	if ((sim.cycle==10) | (sim.cycle % 500 == 0) |
+			(sim.cycle>=time_of_shift & sim.cycle<=(time_of_shift+1000) & sim.cycle%20==0)) {
+		//records and outputs information from simulation
+		
+		sum_muts_auto_1_value_female = 0;
+		sum_muts_auto_2_value_female = 0;
+		sum_muts_auto_3_value_female = 0;
+		sum_muts_auto_4_value_female = 0;
+		sum_muts_auto_5_value_female = 0;
+		sum_muts_auto_6_value_female = 0;
+		sum_muts_auto_7_value_female = 0;
+		sum_muts_auto_8_value_female = 0;
+		sum_muts_auto_9_value_female = 0;
+		
+		sum_muts_auto_1_value_male = 0;
+		sum_muts_auto_2_value_male = 0;
+		sum_muts_auto_3_value_male = 0;
+		sum_muts_auto_4_value_male = 0;
+		sum_muts_auto_5_value_male = 0;
+		sum_muts_auto_6_value_male = 0;
+		sum_muts_auto_7_value_male = 0;
+		sum_muts_auto_8_value_male = 0;
+		sum_muts_auto_9_value_male = 0;
+		
+		sum_muts_x_value_female = 0;
+		sum_muts_x_value_male = 0;
+		sum_muts_y_value_female = 0;
+		sum_muts_y_value_male = 0;
+		
+		sum_female_phenotypes = 0; 
+		sum_male_phenotypes = 0; 
+		
+		pheno_file = pheno_file_start+sim.cycle+".csv";
+		
+		for (i in 0: (length(p1.individuals)-1)){//start loop through individuals
+			
+			individual = p1.individuals[i];
+			
+			muts_auto_1 = individual.genomes.mutationsOfType(m4);
+			muts_auto_2 = individual.genomes.mutationsOfType(m5);
+			muts_auto_3 = individual.genomes.mutationsOfType(m6);
+			muts_auto_4 = individual.genomes.mutationsOfType(m7);
+			muts_auto_5 = individual.genomes.mutationsOfType(m8);
+			muts_auto_6 = individual.genomes.mutationsOfType(m9);
+			muts_auto_7 = individual.genomes.mutationsOfType(m10);
+			muts_auto_8 = individual.genomes.mutationsOfType(m11);
+			muts_auto_9 = individual.genomes.mutationsOfType(m12);
+			
+			muts_auto_1_value_female = size(muts_auto_1) ? sum(muts_auto_1.getValue("e_f")) else 0.0;
+			muts_auto_2_value_female = size(muts_auto_2) ? sum(muts_auto_2.getValue("e_f")) else 0.0;
+			muts_auto_3_value_female = size(muts_auto_3) ? sum(muts_auto_3.getValue("e_f")) else 0.0;
+			muts_auto_4_value_female = size(muts_auto_4) ? sum(muts_auto_4.getValue("e_f")) else 0.0;
+			muts_auto_5_value_female = size(muts_auto_5) ? sum(muts_auto_5.getValue("e_f")) else 0.0;
+			muts_auto_6_value_female = size(muts_auto_6) ? sum(muts_auto_6.getValue("e_f")) else 0.0;
+			muts_auto_7_value_female = size(muts_auto_7) ? sum(muts_auto_7.getValue("e_f")) else 0.0;
+			muts_auto_8_value_female = size(muts_auto_8) ? sum(muts_auto_8.getValue("e_f")) else 0.0;
+			muts_auto_9_value_female = size(muts_auto_9) ? sum(muts_auto_9.getValue("e_f")) else 0.0;
+			
+			muts_auto_1_value_male = size(muts_auto_1) ? sum(muts_auto_1.getValue("e_m")) else 0.0;
+			muts_auto_2_value_male = size(muts_auto_2) ? sum(muts_auto_2.getValue("e_m")) else 0.0;
+			muts_auto_3_value_male = size(muts_auto_3) ? sum(muts_auto_3.getValue("e_m")) else 0.0;
+			muts_auto_4_value_male = size(muts_auto_4) ? sum(muts_auto_4.getValue("e_m")) else 0.0;
+			muts_auto_5_value_male = size(muts_auto_5) ? sum(muts_auto_5.getValue("e_m")) else 0.0;
+			muts_auto_6_value_male = size(muts_auto_6) ? sum(muts_auto_6.getValue("e_m")) else 0.0;
+			muts_auto_7_value_male = size(muts_auto_7) ? sum(muts_auto_7.getValue("e_m")) else 0.0;
+			muts_auto_8_value_male = size(muts_auto_8) ? sum(muts_auto_8.getValue("e_m")) else 0.0;
+			muts_auto_9_value_male = size(muts_auto_9) ? sum(muts_auto_9.getValue("e_m")) else 0.0;
+			
+			sum_muts_auto_1_value_female = sum_muts_auto_1_value_female + muts_auto_1_value_female;
+			sum_muts_auto_2_value_female = sum_muts_auto_2_value_female + muts_auto_2_value_female;
+			sum_muts_auto_3_value_female = sum_muts_auto_3_value_female + muts_auto_3_value_female;
+			sum_muts_auto_4_value_female = sum_muts_auto_4_value_female + muts_auto_4_value_female;
+			sum_muts_auto_5_value_female = sum_muts_auto_5_value_female + muts_auto_5_value_female;
+			sum_muts_auto_6_value_female = sum_muts_auto_6_value_female + muts_auto_6_value_female;
+			sum_muts_auto_7_value_female = sum_muts_auto_7_value_female + muts_auto_7_value_female;
+			sum_muts_auto_8_value_female = sum_muts_auto_8_value_female + muts_auto_8_value_female;
+			sum_muts_auto_9_value_female = sum_muts_auto_9_value_female + muts_auto_9_value_female;
+			
+			sum_muts_auto_1_value_male = sum_muts_auto_1_value_male + muts_auto_1_value_male;
+			sum_muts_auto_2_value_male = sum_muts_auto_2_value_male + muts_auto_2_value_male;
+			sum_muts_auto_3_value_male = sum_muts_auto_3_value_male + muts_auto_3_value_male;
+			sum_muts_auto_4_value_male = sum_muts_auto_4_value_male + muts_auto_4_value_male;
+			sum_muts_auto_5_value_male = sum_muts_auto_5_value_male + muts_auto_5_value_male;
+			sum_muts_auto_6_value_male = sum_muts_auto_6_value_male + muts_auto_6_value_male;
+			sum_muts_auto_7_value_male = sum_muts_auto_7_value_male + muts_auto_7_value_male;
+			sum_muts_auto_8_value_male = sum_muts_auto_8_value_male + muts_auto_8_value_male;
+			sum_muts_auto_9_value_male = sum_muts_auto_9_value_male + muts_auto_9_value_male;
+			
+			
+			if (individual.sex == "F"){
+				
+				muts_x = individual.genomes.mutationsOfType(m2);
+				muts_x_value_female = size(muts_x) ? sum(muts_x.getValue("e_f")) else 0.0;
+				muts_x_value_male = size(muts_x) ? sum(muts_x.getValue("e_m")) else 0.0;
+				
+				sum_muts_x_value_female = sum_muts_x_value_female + muts_x_value_female;
+				sum_muts_x_value_male = sum_muts_x_value_male + muts_x_value_male;
+				
+				phenotype = muts_x_value_female + muts_auto_1_value_female + muts_auto_2_value_female +
+					muts_auto_3_value_female + muts_auto_4_value_female + muts_auto_5_value_female + muts_auto_6_value_female +
+					muts_auto_7_value_female + muts_auto_8_value_female + muts_auto_9_value_female;
+				
+				sum_female_phenotypes = sum_female_phenotypes + phenotype;
+
+				output = "F,"+phenotype+","+muts_x_value_female+","+"0.0"+","+
+					muts_auto_1_value_female+","+muts_auto_2_value_female+","+muts_auto_3_value_female+","+
+					muts_auto_4_value_female+","+muts_auto_5_value_female+","+muts_auto_6_value_female+","+
+					muts_auto_7_value_female+","+muts_auto_8_value_female+","+muts_auto_9_value_female+",";
+			
+			}
+			
+			else{//individual is male
+				
+				muts_x = individual.genome1.mutationsOfType(m2); //x muts
+				muts_y = individual.genome2.mutationsOfType(m3); //y muts
+				
+				muts_x_value_male = size(muts_x) ? sum(muts_x.getValue("e_m")) else 0.0;
+				muts_x_value_female = size(muts_x) ? sum(muts_x.getValue("e_f")) else 0.0;
+				
+				muts_y_value_male = size(muts_y) ? sum(muts_y.getValue("e_m")) else 0.0;
+				muts_y_value_female = size(muts_y) ? sum(muts_y.getValue("e_f")) else 0.0;
+				
+				
+				sum_muts_x_value_female = sum_muts_x_value_female + muts_x_value_female;
+				sum_muts_x_value_male = sum_muts_x_value_male + muts_x_value_male;
+				
+				sum_muts_y_value_female = sum_muts_y_value_female + muts_y_value_female;
+				sum_muts_y_value_male = sum_muts_y_value_male + muts_y_value_male;
+				
+				phenotype = muts_x_value_male + muts_y_value_male + muts_auto_1_value_male + muts_auto_2_value_male +
+					muts_auto_3_value_male + muts_auto_4_value_male + muts_auto_5_value_male + muts_auto_6_value_male +
+					muts_auto_7_value_male + muts_auto_8_value_male + muts_auto_9_value_male;
+				
+				sum_male_phenotypes = sum_male_phenotypes + phenotype;
+
+				output = "M,"+phenotype+","+muts_x_value_male+","+muts_y_value_male+","+
+					muts_auto_1_value_male+","+muts_auto_2_value_male+","+muts_auto_3_value_male+","+
+					muts_auto_4_value_male+","+muts_auto_5_value_male+","+muts_auto_6_value_male+","+
+					muts_auto_7_value_male+","+muts_auto_8_value_male+","+muts_auto_9_value_male+",";
+			
+			}
+			
+			if ((sim.cycle==10) | (sim.cycle % 100000 == 0)|
+			(sim.cycle>=time_of_shift & sim.cycle<=(time_of_shift+1000) & sim.cycle%100==0)){
+				writeFile(pheno_file, output, append=T);
+			} 
+		
+		}//end loop across individuals
+		
+		
+		avg_muts_x_value_female = sum_muts_x_value_female/(1.5*N);
+		avg_muts_x_value_male = sum_muts_x_value_male/(1.5*N);
+		
+		avg_muts_y_value_female = sum_muts_y_value_female/(0.5*N);
+		avg_muts_y_value_male = sum_muts_y_value_male/(0.5*N);
+		
+		avg_muts_auto_1_value_male = sum_muts_auto_1_value_male/(2*N);
+		avg_muts_auto_2_value_male = sum_muts_auto_2_value_male/(2*N);
+		avg_muts_auto_3_value_male = sum_muts_auto_3_value_male/(2*N);
+		avg_muts_auto_4_value_male = sum_muts_auto_4_value_male/(2*N);
+		avg_muts_auto_5_value_male = sum_muts_auto_5_value_male/(2*N);
+		avg_muts_auto_6_value_male = sum_muts_auto_6_value_male/(2*N);
+		avg_muts_auto_7_value_male = sum_muts_auto_7_value_male/(2*N);
+		avg_muts_auto_8_value_male = sum_muts_auto_8_value_male/(2*N);
+		avg_muts_auto_9_value_male = sum_muts_auto_9_value_male/(2*N);
+		
+		avg_muts_auto_1_value_female = sum_muts_auto_1_value_female/(2*N);
+		avg_muts_auto_2_value_female = sum_muts_auto_2_value_female/(2*N);
+		avg_muts_auto_3_value_female = sum_muts_auto_3_value_female/(2*N);
+		avg_muts_auto_4_value_female = sum_muts_auto_4_value_female/(2*N);
+		avg_muts_auto_5_value_female = sum_muts_auto_5_value_female/(2*N);
+		avg_muts_auto_6_value_female = sum_muts_auto_6_value_female/(2*N);
+		avg_muts_auto_7_value_female = sum_muts_auto_7_value_female/(2*N);
+		avg_muts_auto_8_value_female = sum_muts_auto_8_value_female/(2*N);
+		avg_muts_auto_9_value_female = sum_muts_auto_9_value_female/(2*N);
+		
+		avg_female_phenotype = sum_female_phenotypes/(0.5*N);
+		avg_male_phenotype = sum_male_phenotypes/(0.5*N);
+		
+		output_chrom = ""+sim.cycle+","+avg_female_phenotype+","+avg_male_phenotype+
+			","+avg_muts_x_value_female+","+avg_muts_x_value_male+
+			","+avg_muts_y_value_female+","+avg_muts_y_value_male+
+			","+avg_muts_auto_1_value_female+","+avg_muts_auto_1_value_male+
+			","+avg_muts_auto_2_value_female+","+avg_muts_auto_2_value_male+
+			","+avg_muts_auto_3_value_female+","+avg_muts_auto_3_value_male+
+			","+avg_muts_auto_4_value_female+","+avg_muts_auto_4_value_male+
+			","+avg_muts_auto_5_value_female+","+avg_muts_auto_5_value_male+
+			","+avg_muts_auto_6_value_female+","+avg_muts_auto_6_value_male+
+			","+avg_muts_auto_7_value_female+","+avg_muts_auto_7_value_male+
+			","+avg_muts_auto_8_value_female+","+avg_muts_auto_8_value_male+
+			","+avg_muts_auto_9_value_female+","+avg_muts_auto_9_value_male;
+		
+		writeFile(chrom_file, output_chrom, append=T);
+		
+		if ((sim.cycle==10) | (sim.cycle % 100000 == 0)|
+			(sim.cycle>=time_of_shift & sim.cycle<=(time_of_shift+1000) & sim.cycle%100==0)){
+			
+			allele_file = allele_file_start+sim.cycle+".csv";
+			
+			if (size(sim.mutations)>0){
+				for (i in 0: (size(sim.mutations)-1)){
+					mut = sim.mutations[i];
+					type = mut.mutationType;
+					if (type == sim.mutationTypes[0] | type == sim.mutationTypes[1] | type == sim.mutationTypes[2]){}
+					else{
+						id = mut.id;
+						origin_time = mut.originTick;
+						position = mut.position;
+						freq = sim.mutationFrequencies(p1, mut);
+						female_effect = mut.getValue("e_f");
+						male_effect = mut.getValue("e_m");
+						output_mut = "a,"+position+","+id+","+origin_time+","+freq+","+female_effect+","+male_effect+",";
+						writeFile(allele_file, output_mut, append=T);
+					}
+				}
+			} //end of auto mutations loop
+			
+			females = p1.individuals[p1.individuals.sex=="F"];
+			males = p1.individuals[p1.individuals.sex=="M"];
+			
+			female_X_genomes = females.genomes;
+			male_X_genomes = males.genome1;
+			all_X_genomes = c(female_X_genomes, male_X_genomes);
+			all_muts_X_genomes = unique(all_X_genomes.mutationsOfType(m2));
+			
+			all_Y_genomes = males.genome2;
+			all_muts_Y_genomes = unique(all_Y_genomes.mutationsOfType(m3));
+			
+			if (size(all_muts_X_genomes)>0){
+				for (i in 0: (size(all_muts_X_genomes)-1)){
+					mut = all_muts_X_genomes[i];
+					id = mut.id;
+					origin_time = mut.originTick;
+					position = mut.position;
+					freq = sum(asInteger(all_X_genomes.containsMutations(mut)))/(1.5*N);
+					female_effect = mut.getValue("e_f");
+					male_effect = mut.getValue("e_m");
+					output_mut = "x,"+position+","+id+","+origin_time+","+freq+","+female_effect+","+male_effect+",";
+					writeFile(allele_file, output_mut, append=T);
+				}
+			} //end of X mutations loop
+			
+			if (size(all_muts_Y_genomes)>0){
+				for (i in 0: (size(all_muts_Y_genomes)-1)){
+					mut = all_muts_Y_genomes[i];
+					id = mut.id;
+					origin_time = mut.originTick;
+					position = mut.position;
+					freq = sum(asInteger(all_Y_genomes.containsMutations(mut)))/(0.5*N);
+					female_effect = mut.getValue("e_f");
+					male_effect = mut.getValue("e_m");
+					output_mut = "y,"+position+","+id+","+origin_time+","+freq+","+female_effect+","+male_effect+",";
+					writeFile(allele_file, output_mut, append=T);
+				}
+			} //end of Y mutations loop
+		
+		}
+	}//end of if statement checking generations
+
+}
+
+
+mutation() {
+	// draws male and female phenotypic effects for all new mutations
+	effects = rmvnorm(1, mu, sigma);
+	mut.setValue("e_f", effects[0]);
+	mut.setValue("e_m", effects[1]);
+	return T;
+}
+
