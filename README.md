@@ -4,8 +4,6 @@ This folder contains the SLiM code used for simulations in the Muralidhar 2025 p
 
 Simulations are coded in the SLiM evolutionary simulation framework, which can be downloaded here: https://messerlab.org/slim/. All simulations were run in SLiM 4.3. Note that the current versions of SLiM (>5) break backwards compatibility with this version. 
 
-The 2 files in this directory are: Basic_model.slim, Gradual_recombination_shutdown.slim. 
-
-The first of these, "Basic_model.slim" has the most detailed annotations, so please read through this code first. The other SLiM file contain variations upon this basic model. 
+The 2 files in this directory are: Basic_model.slim, Gradual_recombination_shutdown.slim. The first of these, "Basic_model.slim" has the most detailed annotations, so please read through this code first. 
 
 Please feel free to reach out to pmuralidhar [at] uchicago [dot] edu with any questions. 
