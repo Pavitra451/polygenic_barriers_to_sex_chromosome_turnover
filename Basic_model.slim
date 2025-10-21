@@ -21,6 +21,7 @@ initialize() {
 	// defines the region of recombination shutdown between the X and Y in males
 	// in this case, the shutdown point 99 induces a recombination shutdown 
 	// across the entire Y chromosome 
+	// this only occurs after a burn-in of 100k generations
 	
 	initializeMutationRate(u);
 	
@@ -178,7 +179,9 @@ mutation() {
 
 
 recombination() {
-	if (sim.cycle >= 100000){// the time of recombination shutdown between the X and Y 
+	if (sim.cycle >= 100000){// the time of recombination shutdown between the X and Y
+	//after a burn-in of 100k generations during which the X and Y recombine freely 
+	//(i.e. are completely pseudo-autosomal) 
 		if (individual.sex == "M"){
 			//assesses which crossover breakpoints are in the shutdown region
 			recomb_shutdown_region = (breakpoints <= shutdown_point); 

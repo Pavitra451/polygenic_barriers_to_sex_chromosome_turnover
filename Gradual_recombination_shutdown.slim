@@ -1,0 +1,752 @@
+initialize() {
+	
+	//Note that this is a variation on the basic model that implements 
+	//a gradual shutdown in recombination across the sex chromosomes. 
+	//Please see the 'Basic_model.slim' in this repo for more detailed comments on the rest of the code.
+	
+	if (exists("slimgui")) {
+		defineConstant("results_path_base", "~/Desktop/");
+		defineConstant("fit_sd", 1);
+	}
+	
+	defineConstant("u", 10^(-5));
+	defineConstant("optimum", 0); 
+	
+	defineConstant("female_sd", fit_sd); 
+	defineConstant("male_sd", fit_sd); 
+	
+	defineConstant("N", 10000);
+	
+	defineConstant("L", 1000);
+	defineConstant("length_chrom", 100);
+	
+	
+	defineConstant("shutdown_points", c(9, 19, 29, 39, 49, 59, 69, 79, 89, 99));
+	//recombination shutdown across the X and Y occurs in 10% intervals
+	
+	initializeMutationRate(u);
+	
+	initializeMutationType("m1", 1.0, "f", 0.0); 
+	initializeMutationType("m2", 0.5, "f", 0.0); 
+	initializeMutationType("m3", 0.5, "f", 0.0); 
+	initializeMutationType("m4", 0.5, "f", 0.0);
+	initializeMutationType("m5", 0.5, "f", 0.0);
+	initializeMutationType("m6", 0.5, "f", 0.0);
+	initializeMutationType("m7", 0.5, "f", 0.0);
+	initializeMutationType("m8", 0.5, "f", 0.0);
+	initializeMutationType("m9", 0.5, "f", 0.0);
+	initializeMutationType("m10", 0.5, "f", 0.0); 
+	
+	initializeMutationType("m11", 0.5, "f", 0.0); 
+	
+	
+	m1.convertToSubstitution = F;
+	m2.convertToSubstitution = F;
+	m3.convertToSubstitution = F;
+	m4.convertToSubstitution = F;
+	m5.convertToSubstitution = F;
+	m6.convertToSubstitution = F;
+	m7.convertToSubstitution = F;
+	m8.convertToSubstitution = F;
+	m9.convertToSubstitution = F;
+	m10.convertToSubstitution = F;
+	
+	m11.convertToSubstitution = F; //SRY
+
+	initializeGenomicElementType("g1", m1, 1.0); 
+	initializeGenomicElement(g1, 0, (length_chrom-1));
+	initializeGenomicElementType("g2", m2, 1.0);
+	initializeGenomicElement(g2, length_chrom, (length_chrom*2-1));
+	initializeGenomicElementType("g3", m3, 1.0);
+	initializeGenomicElement(g3, length_chrom*2, (length_chrom*3-1));
+	initializeGenomicElementType("g4", m4, 1.0);
+	initializeGenomicElement(g4, length_chrom*3, (length_chrom*4-1));
+	initializeGenomicElementType("g5", m5, 1.0);
+	initializeGenomicElement(g5, length_chrom*4, (length_chrom*5-1));
+	initializeGenomicElementType("g6", m6, 1.0);
+	initializeGenomicElement(g6, length_chrom*5, (length_chrom*6-1));
+	initializeGenomicElementType("g7", m7, 1.0);
+	initializeGenomicElement(g7, length_chrom*6, (length_chrom*7-1));
+	initializeGenomicElementType("g8", m8, 1.0);
+	initializeGenomicElement(g8, length_chrom*7, (length_chrom*8-1));
+	initializeGenomicElementType("g9", m9, 1.0);
+	initializeGenomicElement(g9, length_chrom*8, (length_chrom*9-1));
+	initializeGenomicElementType("g10", m10, 1.0);
+	initializeGenomicElement(g10, length_chrom*9, (length_chrom*10-1));
+	
+	
+	initializeSex("A");
+	
+	
+	female_rates = c(0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01, 0.5, 0.01);
+	male_rates = female_rates; 
+	ends = c(99, 100, 199, 200, 299, 300, 399, 400, 499, 500, 599, 600, 699, 700, 799, 800, 899, 900, 999);
+	
+	initializeRecombinationRate(female_rates, ends, sex="F");
+	initializeRecombinationRate(male_rates, ends, sex="M");
+	
+	
+	defineConstant("mu", c(0, 0)); 
+	defineConstant("var_u", (0.25*10^-2)); 
+	defineConstant("cov", 0.9*var_u); 
+	defineConstant("sigma", matrix(c(var_u,cov,cov,var_u), nrow=2));
+	
+	defineConstant("extra", rdunif(1,0,10000000));
+	defineConstant("results_path", results_path_base +"/"+extra+"/");
+	createDirectory(results_path);
+	
+	defineConstant("simulation_info", ("male_female_trait_"+extra+"_"));
+	
+	defineConstant("pheno_file_start", (results_path+"pheno"+"_"+simulation_info));
+	defineConstant("allele_file_start", (results_path+"allele"+"_"+simulation_info));
+	defineConstant("chrom_file", (results_path+"per_chrom_"+simulation_info+".csv"));
+
+
+}
+
+
+1 early(){
+	sim.addSubpop("p1", N);
+}
+
+1 early(){
+	i = p1.individuals;
+	i[i.sex == "M"].genome2.addNewMutation(m11, 0.0, 0);
+}
+
+
+600001 late() {sim.simulationFinished();}
+
+fitnessEffect() {
+	
+	muts_auto = c(
+		individual.genomes.mutationsOfType(m2),
+		individual.genomes.mutationsOfType(m3),
+		individual.genomes.mutationsOfType(m4),
+		individual.genomes.mutationsOfType(m5),
+		individual.genomes.mutationsOfType(m6),
+		individual.genomes.mutationsOfType(m7),
+		individual.genomes.mutationsOfType(m8),
+		individual.genomes.mutationsOfType(m9),
+		individual.genomes.mutationsOfType(m10));
+	
+	muts_proto_sex_chrom = c(individual.genomes.mutationsOfType(m1));
+	
+	if (individual.sex == "F"){
+		
+		mut_phenotype_auto = size(muts_auto) ? sum(muts_auto.getValue("e_f")) else 0.0;
+		
+		mut_phenotype_sex = size(muts_proto_sex_chrom) ? sum(muts_proto_sex_chrom.getValue("e_f")) else 0.0;
+		
+		phenotype = mut_phenotype_auto + mut_phenotype_sex;
+		
+		fitness = dnorm(asFloat(phenotype), optimum, female_sd)*sqrt(2*PI)*female_sd;
+	
+	}
+	
+	else{//individual is male
+		
+		mut_phenotype_auto = size(muts_auto) ? sum(muts_auto.getValue("e_m")) else 0.0;
+		
+		mut_phenotype_sex = size(muts_proto_sex_chrom) ? sum(muts_proto_sex_chrom.getValue("e_m")) else 0.0;
+		
+		phenotype = mut_phenotype_auto + mut_phenotype_sex;
+		
+		
+		fitness = dnorm(asFloat(phenotype), optimum, male_sd)*sqrt(2*PI)*male_sd;
+	
+	}
+	
+	return fitness;
+
+}
+
+
+
+
+
+mutation() {
+	effects = rmvnorm(1, mu, sigma);
+	mut.setValue("e_f", effects[0]);
+	mut.setValue("e_m", effects[1]);
+	return T;
+}
+
+
+recombination() {
+	
+	if (sim.cycle >= 100000){
+	index = asInteger(floor((sim.cycle - 100000)/20000));
+	// each 10% interval undergoes recombination shutdown every 20k generations 
+	// after the burn-in period of 100k generations
+		if (index > 9){index = 9;} 
+		shutdown_mark = shutdown_points[index];
+		if (individual.sex == "M"){
+		
+			recomb_shutdown_region = (breakpoints <= shutdown_mark); 
+			if (!any(recomb_shutdown_region)){ 
+				return F; 
+			}
+			breakpoints = breakpoints[!recomb_shutdown_region]; 
+			return T;
+		}
+	}
+	
+	return F;
+}
+
+
+modifyChild() {
+	if (child.sex == "F")
+		return !child.genome2.containsMarkerMutation(m11, 0);
+	else
+		return child.genome2.containsMarkerMutation(m11, 0);
+}
+
+
+5: late() {
+	if ((sim.cycle==10) | (sim.cycle % 500 == 0)) { 
+		
+		sum_muts_auto_2_value_female = 0;
+		sum_muts_auto_3_value_female = 0;
+		sum_muts_auto_4_value_female = 0;
+		sum_muts_auto_5_value_female = 0;
+		sum_muts_auto_6_value_female = 0;
+		sum_muts_auto_7_value_female = 0;
+		sum_muts_auto_8_value_female = 0;
+		sum_muts_auto_9_value_female = 0;
+		sum_muts_auto_10_value_female = 0;
+		
+		sum_muts_auto_2_value_male = 0;
+		sum_muts_auto_3_value_male = 0;
+		sum_muts_auto_4_value_male = 0;
+		sum_muts_auto_5_value_male = 0;
+		sum_muts_auto_6_value_male = 0;
+		sum_muts_auto_7_value_male = 0;
+		sum_muts_auto_8_value_male = 0;
+		sum_muts_auto_9_value_male = 0;
+		sum_muts_auto_10_value_male = 0;
+		
+		sum_muts_X_region_1_value_female = 0;
+		sum_muts_X_region_2_value_female = 0;
+		sum_muts_X_region_3_value_female = 0;
+		sum_muts_X_region_4_value_female = 0;
+		sum_muts_X_region_5_value_female = 0;
+		sum_muts_X_region_6_value_female = 0;
+		sum_muts_X_region_7_value_female = 0;
+		sum_muts_X_region_8_value_female = 0;
+		sum_muts_X_region_9_value_female = 0;
+		sum_muts_X_region_10_value_female = 0;
+		
+		sum_muts_X_region_1_value_male = 0;
+		sum_muts_X_region_2_value_male = 0;
+		sum_muts_X_region_3_value_male = 0;
+		sum_muts_X_region_4_value_male = 0;
+		sum_muts_X_region_5_value_male = 0;
+		sum_muts_X_region_6_value_male = 0;
+		sum_muts_X_region_7_value_male = 0;
+		sum_muts_X_region_8_value_male = 0;
+		sum_muts_X_region_9_value_male = 0;
+		sum_muts_X_region_10_value_male = 0;
+		
+		sum_muts_Y_region_1_value_female = 0;
+		sum_muts_Y_region_2_value_female = 0;
+		sum_muts_Y_region_3_value_female = 0;
+		sum_muts_Y_region_4_value_female = 0;
+		sum_muts_Y_region_5_value_female = 0;
+		sum_muts_Y_region_6_value_female = 0;
+		sum_muts_Y_region_7_value_female = 0;
+		sum_muts_Y_region_8_value_female = 0;
+		sum_muts_Y_region_9_value_female = 0;
+		sum_muts_Y_region_10_value_female = 0;
+		
+		sum_muts_Y_region_1_value_male = 0;
+		sum_muts_Y_region_2_value_male = 0;
+		sum_muts_Y_region_3_value_male = 0;
+		sum_muts_Y_region_4_value_male = 0;
+		sum_muts_Y_region_5_value_male = 0;
+		sum_muts_Y_region_6_value_male = 0;
+		sum_muts_Y_region_7_value_male = 0;
+		sum_muts_Y_region_8_value_male = 0;
+		sum_muts_Y_region_9_value_male = 0;
+		sum_muts_Y_region_10_value_male = 0;
+		
+		sum_PAR_X_muts_value_female = 0;
+		sum_PAR_X_muts_value_male = 0;
+		sum_shutdown_X_muts_value_male = 0;
+		sum_shutdown_X_muts_value_female = 0;
+		
+		sum_PAR_Y_muts_value_female = 0;
+		sum_PAR_Y_muts_value_male = 0;
+		sum_shutdown_Y_muts_value_male = 0;
+		sum_shutdown_Y_muts_value_female = 0;
+		
+		
+		//in this scenario, the pseudo-autosomal region and the non-recombining region
+		//change across the course of the simulation
+		if (sim.cycle <= 100000) {boundary = 0;}
+		else if (sim.cycle <= 120000){boundary = shutdown_points[0];}
+		else if (sim.cycle <= 140000){boundary = shutdown_points[1];}
+		else if (sim.cycle <= 160000){boundary = shutdown_points[2];}
+		else if (sim.cycle <= 180000){boundary = shutdown_points[3];}
+		else if (sim.cycle <= 200000){boundary = shutdown_points[4];}
+		else if (sim.cycle <= 220000){boundary = shutdown_points[5];}
+		else if (sim.cycle <= 240000){boundary = shutdown_points[6];}
+		else if (sim.cycle <= 260000){boundary = shutdown_points[7];}
+		else if (sim.cycle <= 280000){boundary = shutdown_points[8];}
+		else if (sim.cycle <= 300000){boundary = shutdown_points[9];}
+		else {boundary = shutdown_points[9];}
+		
+		
+		
+		pheno_file = pheno_file_start+sim.cycle+".csv";
+		
+		for (i in 0: (length(p1.individuals)-1)){
+			
+			individual = p1.individuals[i];
+						
+			muts_auto_2 = individual.genomes.mutationsOfType(m2);
+			muts_auto_3 = individual.genomes.mutationsOfType(m3);
+			muts_auto_4 = individual.genomes.mutationsOfType(m4);
+			muts_auto_5 = individual.genomes.mutationsOfType(m5);
+			muts_auto_6 = individual.genomes.mutationsOfType(m6);
+			muts_auto_7 = individual.genomes.mutationsOfType(m7);
+			muts_auto_8 = individual.genomes.mutationsOfType(m8);
+			muts_auto_9 = individual.genomes.mutationsOfType(m9);
+			muts_auto_10 = individual.genomes.mutationsOfType(m10);
+			
+			muts_auto_2_value_female = size(muts_auto_2) ? sum(muts_auto_2.getValue("e_f")) else 0.0;
+			muts_auto_3_value_female = size(muts_auto_3) ? sum(muts_auto_3.getValue("e_f")) else 0.0;
+			muts_auto_4_value_female = size(muts_auto_4) ? sum(muts_auto_4.getValue("e_f")) else 0.0;
+			muts_auto_5_value_female = size(muts_auto_5) ? sum(muts_auto_5.getValue("e_f")) else 0.0;
+			muts_auto_6_value_female = size(muts_auto_6) ? sum(muts_auto_6.getValue("e_f")) else 0.0;
+			muts_auto_7_value_female = size(muts_auto_7) ? sum(muts_auto_7.getValue("e_f")) else 0.0;
+			muts_auto_8_value_female = size(muts_auto_8) ? sum(muts_auto_8.getValue("e_f")) else 0.0;
+			muts_auto_9_value_female = size(muts_auto_9) ? sum(muts_auto_9.getValue("e_f")) else 0.0;
+			muts_auto_10_value_female = size(muts_auto_10) ? sum(muts_auto_10.getValue("e_f")) else 0.0;
+			
+			muts_auto_2_value_male = size(muts_auto_2) ? sum(muts_auto_2.getValue("e_m")) else 0.0;
+			muts_auto_3_value_male = size(muts_auto_3) ? sum(muts_auto_3.getValue("e_m")) else 0.0;
+			muts_auto_4_value_male = size(muts_auto_4) ? sum(muts_auto_4.getValue("e_m")) else 0.0;
+			muts_auto_5_value_male = size(muts_auto_5) ? sum(muts_auto_5.getValue("e_m")) else 0.0;
+			muts_auto_6_value_male = size(muts_auto_6) ? sum(muts_auto_6.getValue("e_m")) else 0.0;
+			muts_auto_7_value_male = size(muts_auto_7) ? sum(muts_auto_7.getValue("e_m")) else 0.0;
+			muts_auto_8_value_male = size(muts_auto_8) ? sum(muts_auto_8.getValue("e_m")) else 0.0;
+			muts_auto_9_value_male = size(muts_auto_9) ? sum(muts_auto_9.getValue("e_m")) else 0.0;
+			muts_auto_10_value_male = size(muts_auto_10) ? sum(muts_auto_10.getValue("e_m")) else 0.0;
+			
+			sum_muts_auto_2_value_female = sum_muts_auto_2_value_female + muts_auto_2_value_female;
+			sum_muts_auto_3_value_female = sum_muts_auto_3_value_female + muts_auto_3_value_female;
+			sum_muts_auto_4_value_female = sum_muts_auto_4_value_female + muts_auto_4_value_female;
+			sum_muts_auto_5_value_female = sum_muts_auto_5_value_female + muts_auto_5_value_female;
+			sum_muts_auto_6_value_female = sum_muts_auto_6_value_female + muts_auto_6_value_female;
+			sum_muts_auto_7_value_female = sum_muts_auto_7_value_female + muts_auto_7_value_female;
+			sum_muts_auto_8_value_female = sum_muts_auto_8_value_female + muts_auto_8_value_female;
+			sum_muts_auto_9_value_female = sum_muts_auto_9_value_female + muts_auto_9_value_female;
+			sum_muts_auto_10_value_female = sum_muts_auto_10_value_female + muts_auto_10_value_female;
+			
+			sum_muts_auto_2_value_male = sum_muts_auto_2_value_male + muts_auto_2_value_male;
+			sum_muts_auto_3_value_male = sum_muts_auto_3_value_male + muts_auto_3_value_male;
+			sum_muts_auto_4_value_male = sum_muts_auto_4_value_male + muts_auto_4_value_male;
+			sum_muts_auto_5_value_male = sum_muts_auto_5_value_male + muts_auto_5_value_male;
+			sum_muts_auto_6_value_male = sum_muts_auto_6_value_male + muts_auto_6_value_male;
+			sum_muts_auto_7_value_male = sum_muts_auto_7_value_male + muts_auto_7_value_male;
+			sum_muts_auto_8_value_male = sum_muts_auto_8_value_male + muts_auto_8_value_male;
+			sum_muts_auto_9_value_male = sum_muts_auto_9_value_male + muts_auto_9_value_male;
+			sum_muts_auto_10_value_male = sum_muts_auto_10_value_male + muts_auto_10_value_male;
+						
+			if (individual.sex == "F"){
+				
+				
+				all_X_chrom_muts = individual.genomes.mutationsOfType(m1);
+				
+				//the different sub-regions of the sex chromosomes are tracked seperately
+				region_1_muts = all_X_chrom_muts[all_X_chrom_muts.position <= shutdown_points[0]]; // sites 0 through 9
+				region_2_muts = all_X_chrom_muts[all_X_chrom_muts.position > shutdown_points[0] & all_X_chrom_muts.position <= shutdown_points[1]]; // sites 10 through 19
+				region_3_muts = all_X_chrom_muts[all_X_chrom_muts.position > shutdown_points[1] & all_X_chrom_muts.position <= shutdown_points[2]]; // sites 20 through 29
+				region_4_muts = all_X_chrom_muts[all_X_chrom_muts.position > shutdown_points[2] & all_X_chrom_muts.position <= shutdown_points[3]]; // sites 30 through 39
+				region_5_muts = all_X_chrom_muts[all_X_chrom_muts.position > shutdown_points[3] & all_X_chrom_muts.position <= shutdown_points[4]]; // sites 40 through 49
+				region_6_muts = all_X_chrom_muts[all_X_chrom_muts.position > shutdown_points[4] & all_X_chrom_muts.position <= shutdown_points[5]]; // sites 50 through 59
+				region_7_muts = all_X_chrom_muts[all_X_chrom_muts.position > shutdown_points[5] & all_X_chrom_muts.position <= shutdown_points[6]]; // sites 60 through 69
+				region_8_muts = all_X_chrom_muts[all_X_chrom_muts.position > shutdown_points[6] & all_X_chrom_muts.position <= shutdown_points[7]]; // sites 70 through 79
+				region_9_muts = all_X_chrom_muts[all_X_chrom_muts.position > shutdown_points[7] & all_X_chrom_muts.position <= shutdown_points[8]]; // sites 80 through 89
+				region_10_muts = all_X_chrom_muts[all_X_chrom_muts.position > shutdown_points[8]]; // sites 90 through 99
+				
+				muts_X_region_1_value_female = size(region_1_muts) ? sum(region_1_muts.getValue("e_f")) else 0.0;
+				muts_X_region_2_value_female = size(region_2_muts) ? sum(region_2_muts.getValue("e_f")) else 0.0;
+				muts_X_region_3_value_female = size(region_3_muts) ? sum(region_3_muts.getValue("e_f")) else 0.0;
+				muts_X_region_4_value_female = size(region_4_muts) ? sum(region_4_muts.getValue("e_f")) else 0.0;
+				muts_X_region_5_value_female = size(region_5_muts) ? sum(region_5_muts.getValue("e_f")) else 0.0;
+				muts_X_region_6_value_female = size(region_6_muts) ? sum(region_6_muts.getValue("e_f")) else 0.0;
+				muts_X_region_7_value_female = size(region_7_muts) ? sum(region_7_muts.getValue("e_f")) else 0.0;
+				muts_X_region_8_value_female = size(region_8_muts) ? sum(region_8_muts.getValue("e_f")) else 0.0;
+				muts_X_region_9_value_female = size(region_9_muts) ? sum(region_9_muts.getValue("e_f")) else 0.0;
+				muts_X_region_10_value_female = size(region_10_muts) ? sum(region_10_muts.getValue("e_f")) else 0.0;
+				
+				sum_muts_X_region_1_value_female = sum_muts_X_region_1_value_female + muts_X_region_1_value_female;
+				sum_muts_X_region_2_value_female = sum_muts_X_region_2_value_female + muts_X_region_2_value_female;
+				sum_muts_X_region_3_value_female = sum_muts_X_region_3_value_female + muts_X_region_3_value_female;
+				sum_muts_X_region_4_value_female = sum_muts_X_region_4_value_female + muts_X_region_4_value_female;
+				sum_muts_X_region_5_value_female = sum_muts_X_region_5_value_female + muts_X_region_5_value_female;
+				sum_muts_X_region_6_value_female = sum_muts_X_region_6_value_female + muts_X_region_6_value_female;
+				sum_muts_X_region_7_value_female = sum_muts_X_region_7_value_female + muts_X_region_7_value_female;
+				sum_muts_X_region_8_value_female = sum_muts_X_region_8_value_female + muts_X_region_8_value_female;
+				sum_muts_X_region_9_value_female = sum_muts_X_region_9_value_female + muts_X_region_9_value_female;
+				sum_muts_X_region_10_value_female = sum_muts_X_region_10_value_female + muts_X_region_10_value_female;
+				
+				muts_X_region_1_value_male = size(region_1_muts) ? sum(region_1_muts.getValue("e_m")) else 0.0;
+				muts_X_region_2_value_male = size(region_2_muts) ? sum(region_2_muts.getValue("e_m")) else 0.0;
+				muts_X_region_3_value_male = size(region_3_muts) ? sum(region_3_muts.getValue("e_m")) else 0.0;
+				muts_X_region_4_value_male = size(region_4_muts) ? sum(region_4_muts.getValue("e_m")) else 0.0;
+				muts_X_region_5_value_male = size(region_5_muts) ? sum(region_5_muts.getValue("e_m")) else 0.0;
+				muts_X_region_6_value_male = size(region_6_muts) ? sum(region_6_muts.getValue("e_m")) else 0.0;
+				muts_X_region_7_value_male = size(region_7_muts) ? sum(region_7_muts.getValue("e_m")) else 0.0;
+				muts_X_region_8_value_male = size(region_8_muts) ? sum(region_8_muts.getValue("e_m")) else 0.0;
+				muts_X_region_9_value_male = size(region_9_muts) ? sum(region_9_muts.getValue("e_m")) else 0.0;
+				muts_X_region_10_value_male = size(region_10_muts) ? sum(region_10_muts.getValue("e_m")) else 0.0;
+				
+				sum_muts_X_region_1_value_male = sum_muts_X_region_1_value_male + muts_X_region_1_value_male;
+				sum_muts_X_region_2_value_male = sum_muts_X_region_2_value_male + muts_X_region_2_value_male;
+				sum_muts_X_region_3_value_male = sum_muts_X_region_3_value_male + muts_X_region_3_value_male;
+				sum_muts_X_region_4_value_male = sum_muts_X_region_4_value_male + muts_X_region_4_value_male;
+				sum_muts_X_region_5_value_male = sum_muts_X_region_5_value_male + muts_X_region_5_value_male;
+				sum_muts_X_region_6_value_male = sum_muts_X_region_6_value_male + muts_X_region_6_value_male;
+				sum_muts_X_region_7_value_male = sum_muts_X_region_7_value_male + muts_X_region_7_value_male;
+				sum_muts_X_region_8_value_male = sum_muts_X_region_8_value_male + muts_X_region_8_value_male;
+				sum_muts_X_region_9_value_male = sum_muts_X_region_9_value_male + muts_X_region_9_value_male;
+				sum_muts_X_region_10_value_male = sum_muts_X_region_10_value_male + muts_X_region_10_value_male;
+				
+				
+				
+				
+				shutdown_X_muts = all_X_chrom_muts[all_X_chrom_muts.position <= boundary]; 
+				PAR_X_muts = all_X_chrom_muts[all_X_chrom_muts.position > boundary]; 
+				
+				shutdown_X_muts_value_female = size(shutdown_X_muts) ? sum(shutdown_X_muts.getValue("e_f")) else 0.0;
+				PAR_X_muts_value_female = size(PAR_X_muts) ? sum(PAR_X_muts.getValue("e_f")) else 0.0;
+				
+				shutdown_X_muts_value_male = size(shutdown_X_muts) ? sum(shutdown_X_muts.getValue("e_m")) else 0.0;
+				PAR_X_muts_value_male = size(PAR_X_muts) ? sum(PAR_X_muts.getValue("e_m")) else 0.0;
+				
+				sum_shutdown_X_muts_value_female = sum_shutdown_X_muts_value_female + shutdown_X_muts_value_female;
+				sum_PAR_X_muts_value_female = sum_PAR_X_muts_value_female + PAR_X_muts_value_female;
+				
+				sum_shutdown_X_muts_value_male = sum_shutdown_X_muts_value_male + shutdown_X_muts_value_male;
+				sum_PAR_X_muts_value_male = sum_PAR_X_muts_value_male + PAR_X_muts_value_male;
+				
+				
+				output = "F"+","+
+					"0.0"+","+"0.0"+","+"0.0"+","+ 
+					"0.0"+","+"0.0"+","+"0.0"+","+
+					"0.0"+","+"0.0"+","+"0.0"+","+
+					"0.0"+","+
+		muts_X_region_1_value_female+","+muts_X_region_2_value_female+","+muts_X_region_3_value_female+","+
+		muts_X_region_4_value_female+","+muts_X_region_5_value_female+","+muts_X_region_6_value_female+","+
+		muts_X_region_7_value_female+","+muts_X_region_8_value_female+","+muts_X_region_9_value_female+","+
+					muts_X_region_10_value_female+","+
+					muts_auto_2_value_female+","+muts_auto_3_value_female+","+ muts_auto_4_value_female+","+
+					muts_auto_5_value_female+","+muts_auto_6_value_female+","+ muts_auto_7_value_female+","+
+					muts_auto_8_value_female+","+muts_auto_9_value_female+","+
+					+muts_auto_10_value_female;
+			
+			}
+			
+			else{//individual is male
+				
+				all_X_chrom_muts = individual.genome1.mutationsOfType(m1); //X chromosme is maternally inherited
+				all_Y_chrom_muts = individual.genome2.mutationsOfType(m1); //Y is paternally inherited
+				
+				
+				
+				region_1_muts_X = all_X_chrom_muts[all_X_chrom_muts.position <= shutdown_points[0]]; // sites 0 through 9
+				region_2_muts_X = all_X_chrom_muts[all_X_chrom_muts.position > shutdown_points[0] & all_X_chrom_muts.position <= shutdown_points[1]]; // sites 10 through 19
+				region_3_muts_X = all_X_chrom_muts[all_X_chrom_muts.position > shutdown_points[1] & all_X_chrom_muts.position <= shutdown_points[2]]; // sites 20 through 29
+				region_4_muts_X = all_X_chrom_muts[all_X_chrom_muts.position > shutdown_points[2] & all_X_chrom_muts.position <= shutdown_points[3]]; // sites 30 through 39
+				region_5_muts_X = all_X_chrom_muts[all_X_chrom_muts.position > shutdown_points[3] & all_X_chrom_muts.position <= shutdown_points[4]]; // sites 40 through 49
+				region_6_muts_X = all_X_chrom_muts[all_X_chrom_muts.position > shutdown_points[4] & all_X_chrom_muts.position <= shutdown_points[5]]; // sites 50 through 59
+				region_7_muts_X = all_X_chrom_muts[all_X_chrom_muts.position > shutdown_points[5] & all_X_chrom_muts.position <= shutdown_points[6]]; // sites 60 through 69
+				region_8_muts_X = all_X_chrom_muts[all_X_chrom_muts.position > shutdown_points[6] & all_X_chrom_muts.position <= shutdown_points[7]]; // sites 70 through 79
+				region_9_muts_X = all_X_chrom_muts[all_X_chrom_muts.position > shutdown_points[7] & all_X_chrom_muts.position <= shutdown_points[8]]; // sites 80 through 89
+				region_10_muts_X = all_X_chrom_muts[all_X_chrom_muts.position > shutdown_points[8]]; // sites 90 through 99
+				
+				
+				muts_X_region_1_value_female = size(region_1_muts_X) ? sum(region_1_muts_X.getValue("e_f")) else 0.0;
+				muts_X_region_2_value_female = size(region_2_muts_X) ? sum(region_2_muts_X.getValue("e_f")) else 0.0;
+				muts_X_region_3_value_female = size(region_3_muts_X) ? sum(region_3_muts_X.getValue("e_f")) else 0.0;
+				muts_X_region_4_value_female = size(region_4_muts_X) ? sum(region_4_muts_X.getValue("e_f")) else 0.0;
+				muts_X_region_5_value_female = size(region_5_muts_X) ? sum(region_5_muts_X.getValue("e_f")) else 0.0;
+				muts_X_region_6_value_female = size(region_6_muts_X) ? sum(region_6_muts_X.getValue("e_f")) else 0.0;
+				muts_X_region_7_value_female = size(region_7_muts_X) ? sum(region_7_muts_X.getValue("e_f")) else 0.0;
+				muts_X_region_8_value_female = size(region_8_muts_X) ? sum(region_8_muts_X.getValue("e_f")) else 0.0;
+				muts_X_region_9_value_female = size(region_9_muts_X) ? sum(region_9_muts_X.getValue("e_f")) else 0.0;
+				muts_X_region_10_value_female = size(region_10_muts_X) ? sum(region_10_muts_X.getValue("e_f")) else 0.0;
+				
+				sum_muts_X_region_1_value_female = sum_muts_X_region_1_value_female + muts_X_region_1_value_female;
+				sum_muts_X_region_2_value_female = sum_muts_X_region_2_value_female + muts_X_region_2_value_female;
+				sum_muts_X_region_3_value_female = sum_muts_X_region_3_value_female + muts_X_region_3_value_female;
+				sum_muts_X_region_4_value_female = sum_muts_X_region_4_value_female + muts_X_region_4_value_female;
+				sum_muts_X_region_5_value_female = sum_muts_X_region_5_value_female + muts_X_region_5_value_female;
+				sum_muts_X_region_6_value_female = sum_muts_X_region_6_value_female + muts_X_region_6_value_female;
+				sum_muts_X_region_7_value_female = sum_muts_X_region_7_value_female + muts_X_region_7_value_female;
+				sum_muts_X_region_8_value_female = sum_muts_X_region_8_value_female + muts_X_region_8_value_female;
+				sum_muts_X_region_9_value_female = sum_muts_X_region_9_value_female + muts_X_region_9_value_female;
+				sum_muts_X_region_10_value_female = sum_muts_X_region_10_value_female + muts_X_region_10_value_female;
+				
+				
+				muts_X_region_1_value_male = size(region_1_muts_X) ? sum(region_1_muts_X.getValue("e_m")) else 0.0;
+				muts_X_region_2_value_male = size(region_2_muts_X) ? sum(region_2_muts_X.getValue("e_m")) else 0.0;
+				muts_X_region_3_value_male = size(region_3_muts_X) ? sum(region_3_muts_X.getValue("e_m")) else 0.0;
+				muts_X_region_4_value_male = size(region_4_muts_X) ? sum(region_4_muts_X.getValue("e_m")) else 0.0;
+				muts_X_region_5_value_male = size(region_5_muts_X) ? sum(region_5_muts_X.getValue("e_m")) else 0.0;
+				muts_X_region_6_value_male = size(region_6_muts_X) ? sum(region_6_muts_X.getValue("e_m")) else 0.0;
+				muts_X_region_7_value_male = size(region_7_muts_X) ? sum(region_7_muts_X.getValue("e_m")) else 0.0;
+				muts_X_region_8_value_male = size(region_8_muts_X) ? sum(region_8_muts_X.getValue("e_m")) else 0.0;
+				muts_X_region_9_value_male = size(region_9_muts_X) ? sum(region_9_muts_X.getValue("e_m")) else 0.0;
+				muts_X_region_10_value_male = size(region_10_muts_X) ? sum(region_10_muts_X.getValue("e_m")) else 0.0;
+				
+				sum_muts_X_region_1_value_male = sum_muts_X_region_1_value_male + muts_X_region_1_value_male;
+				sum_muts_X_region_2_value_male = sum_muts_X_region_2_value_male + muts_X_region_2_value_male;
+				sum_muts_X_region_3_value_male = sum_muts_X_region_3_value_male + muts_X_region_3_value_male;
+				sum_muts_X_region_4_value_male = sum_muts_X_region_4_value_male + muts_X_region_4_value_male;
+				sum_muts_X_region_5_value_male = sum_muts_X_region_5_value_male + muts_X_region_5_value_male;
+				sum_muts_X_region_6_value_male = sum_muts_X_region_6_value_male + muts_X_region_6_value_male;
+				sum_muts_X_region_7_value_male = sum_muts_X_region_7_value_male + muts_X_region_7_value_male;
+				sum_muts_X_region_8_value_male = sum_muts_X_region_8_value_male + muts_X_region_8_value_male;
+				sum_muts_X_region_9_value_male = sum_muts_X_region_9_value_male + muts_X_region_9_value_male;
+				sum_muts_X_region_10_value_male = sum_muts_X_region_10_value_male + muts_X_region_10_value_male;
+				
+				
+				
+				region_1_muts_Y = all_Y_chrom_muts[all_Y_chrom_muts.position <= shutdown_points[0]]; // sites 0 through 9
+				region_2_muts_Y = all_Y_chrom_muts[all_Y_chrom_muts.position > shutdown_points[0] & all_Y_chrom_muts.position <= shutdown_points[1]]; // sites 10 through 19
+				region_3_muts_Y = all_Y_chrom_muts[all_Y_chrom_muts.position > shutdown_points[1] & all_Y_chrom_muts.position <= shutdown_points[2]]; // sites 20 through 29
+				region_4_muts_Y = all_Y_chrom_muts[all_Y_chrom_muts.position > shutdown_points[2] & all_Y_chrom_muts.position <= shutdown_points[3]]; // sites 30 through 39
+				region_5_muts_Y = all_Y_chrom_muts[all_Y_chrom_muts.position > shutdown_points[3] & all_Y_chrom_muts.position <= shutdown_points[4]]; // sites 40 through 49
+				region_6_muts_Y = all_Y_chrom_muts[all_Y_chrom_muts.position > shutdown_points[4] & all_Y_chrom_muts.position <= shutdown_points[5]]; // sites 50 through 59
+				region_7_muts_Y = all_Y_chrom_muts[all_Y_chrom_muts.position > shutdown_points[5] & all_Y_chrom_muts.position <= shutdown_points[6]]; // sites 60 through 69
+				region_8_muts_Y = all_Y_chrom_muts[all_Y_chrom_muts.position > shutdown_points[6] & all_Y_chrom_muts.position <= shutdown_points[7]]; // sites 70 through 79
+				region_9_muts_Y = all_Y_chrom_muts[all_Y_chrom_muts.position > shutdown_points[7] & all_Y_chrom_muts.position <= shutdown_points[8]]; // sites 80 through 89
+				region_10_muts_Y = all_Y_chrom_muts[all_Y_chrom_muts.position > shutdown_points[8]]; // sites 90 through 99
+				
+				
+				muts_Y_region_1_value_female = size(region_1_muts_Y) ? sum(region_1_muts_Y.getValue("e_f")) else 0.0;
+				muts_Y_region_2_value_female = size(region_2_muts_Y) ? sum(region_2_muts_Y.getValue("e_f")) else 0.0;
+				muts_Y_region_3_value_female = size(region_3_muts_Y) ? sum(region_3_muts_Y.getValue("e_f")) else 0.0;
+				muts_Y_region_4_value_female = size(region_4_muts_Y) ? sum(region_4_muts_Y.getValue("e_f")) else 0.0;
+				muts_Y_region_5_value_female = size(region_5_muts_Y) ? sum(region_5_muts_Y.getValue("e_f")) else 0.0;
+				muts_Y_region_6_value_female = size(region_6_muts_Y) ? sum(region_6_muts_Y.getValue("e_f")) else 0.0;
+				muts_Y_region_7_value_female = size(region_7_muts_Y) ? sum(region_7_muts_Y.getValue("e_f")) else 0.0;
+				muts_Y_region_8_value_female = size(region_8_muts_Y) ? sum(region_8_muts_Y.getValue("e_f")) else 0.0;
+				muts_Y_region_9_value_female = size(region_9_muts_Y) ? sum(region_9_muts_Y.getValue("e_f")) else 0.0;
+				muts_Y_region_10_value_female = size(region_10_muts_Y) ? sum(region_10_muts_Y.getValue("e_f")) else 0.0;
+				
+				sum_muts_Y_region_1_value_female = sum_muts_Y_region_1_value_female + muts_Y_region_1_value_female;
+				sum_muts_Y_region_2_value_female = sum_muts_Y_region_2_value_female + muts_Y_region_2_value_female;
+				sum_muts_Y_region_3_value_female = sum_muts_Y_region_3_value_female + muts_Y_region_3_value_female;
+				sum_muts_Y_region_4_value_female = sum_muts_Y_region_4_value_female + muts_Y_region_4_value_female;
+				sum_muts_Y_region_5_value_female = sum_muts_Y_region_5_value_female + muts_Y_region_5_value_female;
+				sum_muts_Y_region_6_value_female = sum_muts_Y_region_6_value_female + muts_Y_region_6_value_female;
+				sum_muts_Y_region_7_value_female = sum_muts_Y_region_7_value_female + muts_Y_region_7_value_female;
+				sum_muts_Y_region_8_value_female = sum_muts_Y_region_8_value_female + muts_Y_region_8_value_female;
+				sum_muts_Y_region_9_value_female = sum_muts_Y_region_9_value_female + muts_Y_region_9_value_female;
+				sum_muts_Y_region_10_value_female = sum_muts_Y_region_10_value_female + muts_Y_region_10_value_female;
+				
+				
+				muts_Y_region_1_value_male = size(region_1_muts_Y) ? sum(region_1_muts_Y.getValue("e_m")) else 0.0;
+				muts_Y_region_2_value_male = size(region_2_muts_Y) ? sum(region_2_muts_Y.getValue("e_m")) else 0.0;
+				muts_Y_region_3_value_male = size(region_3_muts_Y) ? sum(region_3_muts_Y.getValue("e_m")) else 0.0;
+				muts_Y_region_4_value_male = size(region_4_muts_Y) ? sum(region_4_muts_Y.getValue("e_m")) else 0.0;
+				muts_Y_region_5_value_male = size(region_5_muts_Y) ? sum(region_5_muts_Y.getValue("e_m")) else 0.0;
+				muts_Y_region_6_value_male = size(region_6_muts_Y) ? sum(region_6_muts_Y.getValue("e_m")) else 0.0;
+				muts_Y_region_7_value_male = size(region_7_muts_Y) ? sum(region_7_muts_Y.getValue("e_m")) else 0.0;
+				muts_Y_region_8_value_male = size(region_8_muts_Y) ? sum(region_8_muts_Y.getValue("e_m")) else 0.0;
+				muts_Y_region_9_value_male = size(region_9_muts_Y) ? sum(region_9_muts_Y.getValue("e_m")) else 0.0;
+				muts_Y_region_10_value_male = size(region_10_muts_Y) ? sum(region_10_muts_Y.getValue("e_m")) else 0.0;
+				
+				sum_muts_Y_region_1_value_male = sum_muts_Y_region_1_value_male + muts_Y_region_1_value_male;
+				sum_muts_Y_region_2_value_male = sum_muts_Y_region_2_value_male + muts_Y_region_2_value_male;
+				sum_muts_Y_region_3_value_male = sum_muts_Y_region_3_value_male + muts_Y_region_3_value_male;
+				sum_muts_Y_region_4_value_male = sum_muts_Y_region_4_value_male + muts_Y_region_4_value_male;
+				sum_muts_Y_region_5_value_male = sum_muts_Y_region_5_value_male + muts_Y_region_5_value_male;
+				sum_muts_Y_region_6_value_male = sum_muts_Y_region_6_value_male + muts_Y_region_6_value_male;
+				sum_muts_Y_region_7_value_male = sum_muts_Y_region_7_value_male + muts_Y_region_7_value_male;
+				sum_muts_Y_region_8_value_male = sum_muts_Y_region_8_value_male + muts_Y_region_8_value_male;
+				sum_muts_Y_region_9_value_male = sum_muts_Y_region_9_value_male + muts_Y_region_9_value_male;
+				sum_muts_Y_region_10_value_male = sum_muts_Y_region_10_value_male + muts_Y_region_10_value_male;
+				
+				
+				shutdown_X_muts = all_X_chrom_muts[all_X_chrom_muts.position <= boundary]; 
+				PAR_X_muts = all_X_chrom_muts[all_X_chrom_muts.position > boundary]; 
+				
+				shutdown_Y_muts = all_Y_chrom_muts[all_Y_chrom_muts.position <= boundary]; 
+				PAR_Y_muts = all_Y_chrom_muts[all_Y_chrom_muts.position > boundary]; 
+				
+				
+				shutdown_X_muts_value_female = size(shutdown_X_muts) ? sum(shutdown_X_muts.getValue("e_f")) else 0.0;
+				PAR_X_muts_value_female = size(PAR_X_muts) ? sum(PAR_X_muts.getValue("e_f")) else 0.0;
+				
+				shutdown_X_muts_value_male = size(shutdown_X_muts) ? sum(shutdown_X_muts.getValue("e_m")) else 0.0;
+				PAR_X_muts_value_male = size(PAR_X_muts) ? sum(PAR_X_muts.getValue("e_m")) else 0.0;
+				
+				sum_shutdown_X_muts_value_female = sum_shutdown_X_muts_value_female + shutdown_X_muts_value_female;
+				sum_PAR_X_muts_value_female = sum_PAR_X_muts_value_female + PAR_X_muts_value_female;
+				
+				sum_shutdown_X_muts_value_male = sum_shutdown_X_muts_value_male + shutdown_X_muts_value_male;
+				sum_PAR_X_muts_value_male = sum_PAR_X_muts_value_male + PAR_X_muts_value_male;
+				
+				
+				shutdown_Y_muts_value_female = size(shutdown_Y_muts) ? sum(shutdown_Y_muts.getValue("e_f")) else 0.0;
+				PAR_Y_muts_value_female = size(PAR_Y_muts) ? sum(PAR_Y_muts.getValue("e_f")) else 0.0;
+				
+				shutdown_Y_muts_value_male = size(shutdown_Y_muts) ? sum(shutdown_Y_muts.getValue("e_m")) else 0.0;
+				PAR_Y_muts_value_male = size(PAR_Y_muts) ? sum(PAR_Y_muts.getValue("e_m")) else 0.0;
+				
+				sum_shutdown_Y_muts_value_female = sum_shutdown_Y_muts_value_female + shutdown_Y_muts_value_female;
+				sum_PAR_Y_muts_value_female = sum_PAR_Y_muts_value_female + PAR_Y_muts_value_female;
+				
+				sum_shutdown_Y_muts_value_male = sum_shutdown_Y_muts_value_male + shutdown_Y_muts_value_male;
+				sum_PAR_Y_muts_value_male = sum_PAR_Y_muts_value_male + PAR_Y_muts_value_male;
+				
+				output = "M"+","+
+					muts_Y_region_1_value_male+","+muts_Y_region_2_value_male+","+muts_Y_region_3_value_male+","+
+					muts_Y_region_4_value_male+","+muts_Y_region_5_value_male+","+muts_Y_region_6_value_male+","+
+					muts_Y_region_7_value_male+","+muts_Y_region_8_value_male+","+muts_Y_region_9_value_male+","+
+					muts_Y_region_10_value_male+","+
+					muts_X_region_1_value_male+","+muts_X_region_2_value_male+","+muts_X_region_3_value_male+","+
+					muts_X_region_4_value_male+","+muts_X_region_5_value_male+","+muts_X_region_6_value_male+","+
+					muts_X_region_7_value_male+","+muts_X_region_8_value_male+","+muts_X_region_9_value_male+","+
+					muts_X_region_10_value_male+","+
+					muts_auto_2_value_male+","+muts_auto_3_value_male+","+ muts_auto_4_value_male+","+
+					muts_auto_5_value_male+","+muts_auto_6_value_male+","+ muts_auto_7_value_male+","+
+					muts_auto_8_value_male+","+muts_auto_9_value_male+","+
+					+muts_auto_10_value_male;
+			
+			}
+			
+			if ((sim.cycle==10) | (sim.cycle % 100000 == 0)){
+				writeFile(pheno_file, output, append=T);
+			} 
+		
+		}
+		
+		
+		avg_muts_auto_2_value_male = sum_muts_auto_2_value_male/(2*N);
+		avg_muts_auto_3_value_male = sum_muts_auto_3_value_male/(2*N);
+		avg_muts_auto_4_value_male = sum_muts_auto_4_value_male/(2*N);
+		avg_muts_auto_5_value_male = sum_muts_auto_5_value_male/(2*N);
+		avg_muts_auto_6_value_male = sum_muts_auto_6_value_male/(2*N);
+		avg_muts_auto_7_value_male = sum_muts_auto_7_value_male/(2*N);
+		avg_muts_auto_8_value_male = sum_muts_auto_8_value_male/(2*N);
+		avg_muts_auto_9_value_male = sum_muts_auto_9_value_male/(2*N);
+		avg_muts_auto_10_value_male = sum_muts_auto_10_value_male/(2*N);
+		
+		avg_muts_auto_2_value_female = sum_muts_auto_2_value_female/(2*N);
+		avg_muts_auto_3_value_female = sum_muts_auto_3_value_female/(2*N);
+		avg_muts_auto_4_value_female = sum_muts_auto_4_value_female/(2*N);
+		avg_muts_auto_5_value_female = sum_muts_auto_5_value_female/(2*N);
+		avg_muts_auto_6_value_female = sum_muts_auto_6_value_female/(2*N);
+		avg_muts_auto_7_value_female = sum_muts_auto_7_value_female/(2*N);
+		avg_muts_auto_8_value_female = sum_muts_auto_8_value_female/(2*N);
+		avg_muts_auto_9_value_female = sum_muts_auto_9_value_female/(2*N);
+		avg_muts_auto_10_value_female = sum_muts_auto_10_value_female/(2*N);
+		
+		avg_muts_X_value_region_1_female = sum_muts_X_region_1_value_female/(1.5*N);
+		avg_muts_X_value_region_2_female = sum_muts_X_region_2_value_female/(1.5*N);
+		avg_muts_X_value_region_3_female = sum_muts_X_region_3_value_female/(1.5*N);
+		avg_muts_X_value_region_4_female = sum_muts_X_region_4_value_female/(1.5*N);
+		avg_muts_X_value_region_5_female = sum_muts_X_region_5_value_female/(1.5*N);
+		avg_muts_X_value_region_6_female = sum_muts_X_region_6_value_female/(1.5*N);
+		avg_muts_X_value_region_7_female = sum_muts_X_region_7_value_female/(1.5*N);
+		avg_muts_X_value_region_8_female = sum_muts_X_region_8_value_female/(1.5*N);
+		avg_muts_X_value_region_9_female = sum_muts_X_region_9_value_female/(1.5*N);
+		avg_muts_X_value_region_10_female = sum_muts_X_region_10_value_female/(1.5*N);
+		
+		avg_muts_X_value_region_1_male = sum_muts_X_region_1_value_male/(1.5*N);
+		avg_muts_X_value_region_2_male = sum_muts_X_region_2_value_male/(1.5*N);
+		avg_muts_X_value_region_3_male = sum_muts_X_region_3_value_male/(1.5*N);
+		avg_muts_X_value_region_4_male = sum_muts_X_region_4_value_male/(1.5*N);
+		avg_muts_X_value_region_5_male = sum_muts_X_region_5_value_male/(1.5*N);
+		avg_muts_X_value_region_6_male = sum_muts_X_region_6_value_male/(1.5*N);
+		avg_muts_X_value_region_7_male = sum_muts_X_region_7_value_male/(1.5*N);
+		avg_muts_X_value_region_8_male = sum_muts_X_region_8_value_male/(1.5*N);
+		avg_muts_X_value_region_9_male = sum_muts_X_region_9_value_male/(1.5*N);
+		avg_muts_X_value_region_10_male = sum_muts_X_region_10_value_male/(1.5*N);
+		
+		avg_muts_Y_value_region_1_female = sum_muts_Y_region_1_value_female/(0.5*N);
+		avg_muts_Y_value_region_2_female = sum_muts_Y_region_2_value_female/(0.5*N);
+		avg_muts_Y_value_region_3_female = sum_muts_Y_region_3_value_female/(0.5*N);
+		avg_muts_Y_value_region_4_female = sum_muts_Y_region_4_value_female/(0.5*N);
+		avg_muts_Y_value_region_5_female = sum_muts_Y_region_5_value_female/(0.5*N);
+		avg_muts_Y_value_region_6_female = sum_muts_Y_region_6_value_female/(0.5*N);
+		avg_muts_Y_value_region_7_female = sum_muts_Y_region_7_value_female/(0.5*N);
+		avg_muts_Y_value_region_8_female = sum_muts_Y_region_8_value_female/(0.5*N);
+		avg_muts_Y_value_region_9_female = sum_muts_Y_region_9_value_female/(0.5*N);
+		avg_muts_Y_value_region_10_female = sum_muts_Y_region_10_value_female/(0.5*N);
+		
+		avg_muts_Y_value_region_1_male = sum_muts_Y_region_1_value_male/(0.5*N);
+		avg_muts_Y_value_region_2_male = sum_muts_Y_region_2_value_male/(0.5*N);
+		avg_muts_Y_value_region_3_male = sum_muts_Y_region_3_value_male/(0.5*N);
+		avg_muts_Y_value_region_4_male = sum_muts_Y_region_4_value_male/(0.5*N);
+		avg_muts_Y_value_region_5_male = sum_muts_Y_region_5_value_male/(0.5*N);
+		avg_muts_Y_value_region_6_male = sum_muts_Y_region_6_value_male/(0.5*N);
+		avg_muts_Y_value_region_7_male = sum_muts_Y_region_7_value_male/(0.5*N);
+		avg_muts_Y_value_region_8_male = sum_muts_Y_region_8_value_male/(0.5*N);
+		avg_muts_Y_value_region_9_male = sum_muts_Y_region_9_value_male/(0.5*N);
+		avg_muts_Y_value_region_10_male = sum_muts_Y_region_10_value_male/(0.5*N);
+		
+		
+				
+		avg_shutdown_Y_muts_value_female = sum_shutdown_Y_muts_value_female/(0.5*N);
+		avg_PAR_Y_muts_value_female = sum_PAR_Y_muts_value_female/(0.5*N);
+		
+		avg_shutdown_Y_muts_value_male = sum_shutdown_Y_muts_value_male/(0.5*N);
+		avg_PAR_Y_muts_value_male = sum_PAR_Y_muts_value_male/(0.5*N);
+		
+		avg_shutdown_X_muts_value_female = sum_shutdown_X_muts_value_female/(1.5*N);
+		avg_PAR_X_muts_value_female = sum_PAR_X_muts_value_female/(1.5*N);
+		
+		avg_shutdown_X_muts_value_male = sum_shutdown_X_muts_value_male/(1.5*N);
+		avg_PAR_X_muts_value_male = sum_PAR_X_muts_value_male/(1.5*N);
+		
+		
+		output_chrom = ""+sim.cycle+
+			","+avg_muts_auto_2_value_female+","+avg_muts_auto_2_value_male+
+			","+avg_muts_auto_3_value_female+","+avg_muts_auto_3_value_male+
+			","+avg_muts_auto_4_value_female+","+avg_muts_auto_4_value_male+
+			","+avg_muts_auto_5_value_female+","+avg_muts_auto_5_value_male+
+			","+avg_muts_auto_6_value_female+","+avg_muts_auto_6_value_male+
+			","+avg_muts_auto_7_value_female+","+avg_muts_auto_7_value_male+
+			","+avg_muts_auto_8_value_female+","+avg_muts_auto_8_value_male+
+			","+avg_muts_auto_9_value_female+","+avg_muts_auto_9_value_male+
+			","+avg_muts_auto_10_value_female+","+avg_muts_auto_10_value_male+
+			","+avg_muts_X_value_region_1_female+","+avg_muts_X_value_region_1_male+
+			","+avg_muts_X_value_region_2_female+","+avg_muts_X_value_region_2_male+
+			","+avg_muts_X_value_region_3_female+","+avg_muts_X_value_region_3_male+
+			","+avg_muts_X_value_region_4_female+","+avg_muts_X_value_region_4_male+
+			","+avg_muts_X_value_region_5_female+","+avg_muts_X_value_region_5_male+
+			","+avg_muts_X_value_region_6_female+","+avg_muts_X_value_region_6_male+
+			","+avg_muts_X_value_region_7_female+","+avg_muts_X_value_region_7_male+
+			","+avg_muts_X_value_region_8_female+","+avg_muts_X_value_region_8_male+
+			","+avg_muts_X_value_region_9_female+","+avg_muts_X_value_region_9_male+
+			","+avg_muts_X_value_region_10_female+","+avg_muts_X_value_region_10_male+
+			","+avg_muts_Y_value_region_1_female+","+avg_muts_Y_value_region_1_male+
+			","+avg_muts_Y_value_region_2_female+","+avg_muts_Y_value_region_2_male+
+			","+avg_muts_Y_value_region_3_female+","+avg_muts_Y_value_region_3_male+
+			","+avg_muts_Y_value_region_4_female+","+avg_muts_Y_value_region_4_male+
+			","+avg_muts_Y_value_region_5_female+","+avg_muts_Y_value_region_5_male+
+			","+avg_muts_Y_value_region_6_female+","+avg_muts_Y_value_region_6_male+
+			","+avg_muts_Y_value_region_7_female+","+avg_muts_Y_value_region_7_male+
+			","+avg_muts_Y_value_region_8_female+","+avg_muts_Y_value_region_8_male+
+			","+avg_muts_Y_value_region_9_female+","+avg_muts_Y_value_region_9_male+
+			","+avg_muts_Y_value_region_10_female+","+avg_muts_Y_value_region_10_male+
+			","+avg_shutdown_X_muts_value_female+","+avg_shutdown_X_muts_value_male+
+			","+avg_PAR_X_muts_value_female+","+avg_PAR_X_muts_value_male+
+			","+avg_shutdown_Y_muts_value_female+","+avg_shutdown_Y_muts_value_male+
+			","+avg_PAR_Y_muts_value_female+","+avg_PAR_Y_muts_value_male;
+
+		writeFile(chrom_file, output_chrom, append=T);
+		
+	}
+
+}
+
